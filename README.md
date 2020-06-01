@@ -1,5 +1,7 @@
 # gitree
 
+*This is not an officially supported Google product.*
+
 `gitree` is a wrapper around `git log --graph` that heuristically determines
 what set of commits should be displayed. It is designed for use with
 branch-heavy workflows similar to those supported by the [Mercurial `evolve`
