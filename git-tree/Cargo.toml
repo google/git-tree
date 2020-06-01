@@ -20,11 +20,11 @@ description = """Tool that invokes git log --graph, automatically determining \
 edition = "2018"
 keywords = ["git"]
 license = "Apache-2.0"
-name = "gitree"
+name = "git-tree"
 version = "1.0.0"
 
 [[bin]]
-name = "gitree"
+name = "git-tree"
 path = "main.rs"
 
 [dependencies]
@@ -36,7 +36,7 @@ gitloggraph = { path = "../gitloggraph", version = "1.0.0" }
 [profile.release]
 codegen-units = 1
 lto = true
-# Load time is a significant part of gitree's execution, and the rest is
+# Load time is a significant part of git-tree's execution, and the rest is
 # largely blocked on I/O. Making the binary smaller is probably more important
 # than runtime CPU efficiency.
 # TODO: Benchmark to confirm this.

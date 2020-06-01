@@ -105,7 +105,7 @@ fn main() {
     // TODO: Better document the command-line arguments.
     // TODO: See if replacing `clap` with another argument parser (perhaps a
     // custom parser?) improves the size of the executable.
-    let cmdline_matches = clap::App::new("gitree")
+    let cmdline_matches = clap::App::new("git-tree")
         .arg(clap::Arg::with_name("debug").long("debug").short("d"))
         .arg(clap::Arg::with_name("git_params").last(true).multiple(true))
         .arg(clap::Arg::with_name("username").long("username").short("u").takes_value(true))

@@ -1,29 +1,29 @@
-# gitree
+# git-tree
 
 *This is not an officially supported Google product.*
 
-`gitree` is a wrapper around `git log --graph` that heuristically determines
+`git-tree` is a wrapper around `git log --graph` that heuristically determines
 what set of commits should be displayed. It is designed for use with
 branch-heavy workflows similar to those supported by the [Mercurial `evolve`
 extension](https://www.mercurial-scm.org/wiki/EvolveExtension).
 
 It accepts the following command-line flags:
 
-* `--debug`/`-d`: Used for debugging `gitree`'s commit selection. Displays the
-  commits that `gitree` is trying to show as well as the inclusion/exclusions
+* `--debug`/`-d`: Used for debugging `git-tree`'s commit selection. Displays the
+  commits that `git-tree` is trying to show as well as the inclusion/exclusions
   arguments it is passing to `git log`.
 * `--username`/`-u`: Specifies a username to look for to determine whether a
-  remote repository is owned by the user invoking `gitree`. `gitree` shows all
-  branches in this repository, rather than only branches corresponding to local
-  branches.
+  remote repository is owned by the user invoking `git-tree`. `git-tree` shows
+  all branches in this repository, rather than only branches corresponding to
+  local branches.
 
 Additionally, any remaining arguments after a `--` are passed through to `git
 log`, allowing the user to set up their own formatting options.
 
-For example, I have the following alias in my `.bashrc` to invoke `gitree`:
+For example, I have the following alias in my `.bashrc` to invoke `git-tree`:
 
 ```
-alias gitree='gitree -u jrvanwhy -- --format="%C(auto)%h %d %<(50,trunc)%s"'
+alias git-tree='git-tree -u jrvanwhy -- --format="%C(auto)%h %d %<(50,trunc)%s"'
 ```
 
 This produces output similar to the following (albeit colorized by default,
