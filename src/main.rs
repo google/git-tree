@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO: Pin Rust version, CI rustfmt, CI clippy, rustfmt config, clippy config,
-// faster HashSet hasher.
+// TODO: CI rustfmt (w/ latest stable rust), CI clippy, rustfmt config, clippy
+// config, move from &str references to binary hash IDs (along with an identity
+// hasher).
 
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
@@ -44,7 +45,7 @@ fn main() {
         }
     }
 
-    // TODO: Spawn and stream in stdout? Skip UTF-8 checking?
+    // TODO: Remove this call entirely?
     let output = Command::new("git")
         .args(&["rev-parse", "HEAD"])
         .args(tracked)
@@ -83,12 +84,43 @@ fn main() {
         merge_bases.push(line);
     }
 
+    // TODO: Stream.
+    let output = Command::new("git")
+        .args(&["rev-list", "--parents", "--reverse", "--topo-order"])
+        .args(&interesting)
+        .arg("--not")
+        .args(&merge_bases)
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("Failed to run git");
+    if !output.status.success() {
+        eprintln!(
+            "Git returned an unsuccessful status: {}. Git output:\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout)
+        );
+        return;
+    }
+    let mut visible: HashSet<&str> = merge_bases.iter().copied().collect();
+    let mut stragglers: HashSet<&str> = HashSet::new();
+    for line in str::from_utf8(&output.stdout).unwrap().lines() {
+        let mut hashes = line.split(' ');
+        let id = hashes.next().unwrap();
+        if hashes.clone().any(|h| visible.contains(h)) {
+            visible.insert(id);
+            for hash in hashes.filter(|h| !visible.contains(h)) {
+                stragglers.insert(hash);
+            }
+        }
+    }
+
     // TODO: Re-add command line config.
     Command::new("git")
         .args(&["log", "--graph", "--format=%C(auto)%h %d %<(50,trunc)%s"])
         .args(interesting)
         .arg("--not")
         .args(merge_bases.iter().map(|id| format!("{}^@", id)))
+        .args(stragglers)
         .spawn()
         .expect("Failed to run git")
         .wait()
