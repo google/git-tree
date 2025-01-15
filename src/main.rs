@@ -17,37 +17,40 @@
 
 use core::str;
 use std::collections::HashSet;
+use std::io::{BufRead as _, BufReader};
 use std::process::{Command, Stdio};
 
 #[allow(clippy::allow_attributes)] // TODO: Remove
 #[allow(clippy::allow_attributes_without_reason)] // TODO: Remove
-#[allow(clippy::expect_used)] // TODO: Re-evaluate
-#[allow(clippy::print_stderr)] // TODO: Re-evaluate
+#[allow(clippy::print_stderr)] // TODO: Remove
 #[allow(clippy::shadow_unrelated)] // TODO: Remove
-#[allow(clippy::unwrap_used)] // TODO: Re-evaluate
 fn main() {
-    // TODO: Spawn and stream in stdout? Skip UTF-8 checking?
-    let output = Command::new("git")
+    let mut git = Command::new("git")
         .args(["branch", "--format=%(objectname)|%(upstream)"])
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("Failed to run git");
-    if !output.status.success() {
-        eprintln!(
-            "Git returned an unsuccessful status: {}. Git output:\n{}",
-            output.status,
-            String::from_utf8_lossy(&output.stdout)
-        );
-        return;
-    }
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("failed to run git");
     let mut interesting = HashSet::new();
-    for line in str::from_utf8(&output.stdout).expect("non-UTF-8 git output").lines() {
-        let (id, upstream) = line.split_once('|').expect("Incorrect branch --format output");
-        interesting.insert(id);
+    // Capacity estimate is a guess -- twice as large as a SHA-256 hash seems
+    // reasonable.
+    let mut part = Vec::with_capacity(128);
+    let mut reader = BufReader::new(git.stdout.as_mut().unwrap());
+    while let Some(len) =
+        reader.read_until(b'\n', &mut part).expect("git stdout read failed").checked_sub(1)
+    {
+        let (id, upstream) = str::from_utf8(part.get(..len).unwrap())
+            .expect("non-utf-8 git output")
+            .split_once('|')
+            .expect("incorrect branch --format output");
+        interesting.insert(id.to_owned());
         if !upstream.is_empty() {
-            interesting.insert(upstream);
+            interesting.insert(upstream.to_owned());
         }
+        part.clear();
     }
+    drop(part);
+    let status = git.wait().expect("failed to wait for git");
+    assert!(status.success(), "git returned unsuccessful status {status}");
 
     // TODO: Spawn and stream in stdout? Skip UTF-8 checking?
     let output = Command::new("git")
