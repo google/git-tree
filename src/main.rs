@@ -12,18 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO: CI rustfmt (w/ latest stable rust), CI clippy, rustfmt config, clippy
-// config, move from &str references to binary hash IDs (along with an identity
+//! A wrapper around `git log --graph` that heuristically determines what set of
+//! commits should be displayed.
+
+// TODO: Move from &str references to binary hash IDs (along with an identity
 // hasher).
 
+use core::str;
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
-use std::str;
 
+#[allow(clippy::allow_attributes)] // TODO: Remove
+#[allow(clippy::allow_attributes_without_reason)] // TODO: Remove
+#[allow(clippy::expect_used)] // TODO: Re-evaluate
+#[allow(clippy::print_stderr)] // TODO: Re-evaluate
+#[allow(clippy::shadow_unrelated)] // TODO: Remove
+#[allow(clippy::unwrap_used)] // TODO: Re-evaluate
 fn main() {
     // TODO: Spawn and stream in stdout? Skip UTF-8 checking?
     let output = Command::new("git")
-        .args(&["branch", "--format=%(objectname)|%(upstream)"])
+        .args(["branch", "--format=%(objectname)|%(upstream)"])
         .stderr(Stdio::inherit())
         .output()
         .expect("Failed to run git");
@@ -47,7 +55,7 @@ fn main() {
 
     // TODO: Remove this call entirely?
     let output = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .args(tracked)
         .stderr(Stdio::inherit())
         .output()
@@ -66,7 +74,7 @@ fn main() {
 
     // TODO: Spawn and stream in stdout? Skip UTF-8 checking?
     let output = Command::new("git")
-        .args(&["merge-base", "-a", "--octopus"])
+        .args(["merge-base", "-a", "--octopus"])
         .args(&interesting)
         .stderr(Stdio::inherit())
         .output()
@@ -86,7 +94,7 @@ fn main() {
 
     // TODO: Stream.
     let output = Command::new("git")
-        .args(&["rev-list", "--parents", "--reverse", "--topo-order"])
+        .args(["rev-list", "--parents", "--reverse", "--topo-order"])
         .args(&interesting)
         .arg("--not")
         .args(&merge_bases)
@@ -116,10 +124,10 @@ fn main() {
 
     // TODO: Re-add command line config.
     Command::new("git")
-        .args(&["log", "--graph", "--format=%C(auto)%h %d %<(50,trunc)%s"])
+        .args(["log", "--graph", "--format=%C(auto)%h %d %<(50,trunc)%s"])
         .args(interesting)
         .arg("--not")
-        .args(merge_bases.iter().map(|id| format!("{}^@", id)))
+        .args(merge_bases.iter().map(|id| format!("{id}^@")))
         .args(stragglers)
         .spawn()
         .expect("Failed to run git")
