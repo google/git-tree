@@ -114,7 +114,7 @@ fn main() {
     // Value: true if we have not seen a child of this commit, false if we have
     //        seen a child. The entries where the value remains true will be the
     //        entries we include in the git command.
-    let mut visible: HashMap<String, bool> = HashMap::new(); // TODO: Remove type
+    let mut visible: HashMap<_, _> = merge_bases.iter().map(|id| (id.clone(), false)).collect();
     // Commits that we directly exclude from the log. These are commits that are
     // not visible themselves that are parents of visible commits.
     let mut excludes: HashSet<String> = HashSet::new();  // TODO: Remove type
@@ -127,25 +127,22 @@ fn main() {
         let id = ids.next().expect("empty rev-list output line");
 
         let mut main = ids.clone().enumerate();
-        loop {
-            let Some((i, parent)) = main.next() else {
-                break;
+        while let Some((i, parent)) = main.next() {
+            let Some(has_child) = visible.get_mut(parent) else {
+                continue
             };
-            let Some(exclude) = visible.get_mut(parent) else {
-                continue;
-            };
-            *exclude = false;
+            *has_child = true;
             for parent in ids.take(i) {
-                excludes.insert(parent.into());
+                excludes.insert(parent.into()); // TODO: Entry
             }
-            for (_, parent) in main {
-                match visible.get_mut(parent) {
-                    None => {excludes.insert(parent.into());},
-                    Some(exclude) => *exclude = true,
-                }
+            visible.insert(id.into(), false);
+            break
+        }
+        for (_, parent) in main {
+            match visible.get_mut(parent) {
+                None => {excludes.insert(parent.into());}, // TODO: Entry
+                Some(has_child) => {*has_child = true; },
             }
-            visible.insert(id.into(), true);
-            break;
         }
         buffer.clear();
     }
