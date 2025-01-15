@@ -111,9 +111,7 @@ fn main() {
         .spawn()
         .expect("failed to run git");
     // Key: The ID of a hash that should be visible in the final graph.
-    // Value: true if we have not seen a child of this commit, false if we have
-    //        seen a child. The entries where the value remains true will be the
-    //        entries we include in the git command.
+    // Value: Whether we've seen a child of this commit.
     let mut visible: HashMap<_, _> = merge_bases.iter().map(|id| (id.clone(), false)).collect();
     // Commits that we directly exclude from the log. These are commits that are
     // not visible themselves that are parents of visible commits.
@@ -154,7 +152,7 @@ fn main() {
     // TODO: Re-add command line config.
     Command::new("git")
         .args(["log", "--graph", "--format=%C(auto)%h %d %<(50,trunc)%s"])
-        .args(visible.iter().filter(|(_,&v)| v).map(|(k, _)| k))
+        .args(visible.iter().filter(|(_,&v)| !v).map(|(k, _)| k))
         .arg("--not")
         .args(merge_bases.iter().map(|id| format!("{id}^@")))
         .args(excludes)
