@@ -22,7 +22,7 @@
 // commits on the paths between the merge bases and the interesting commits.
 
 use core::str;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead as _, BufReader};
 use std::process::{Command, Stdio};
 
@@ -85,6 +85,7 @@ fn merge_bases(buffer: &mut Vec<u8>, interesting_branches: &HashSet<String>) -> 
         merge_bases.push(merge_base);
         buffer.clear();
     }
+    drop(reader);
     let status = git.wait().expect("failed to wait for git");
     assert!(status.success(), "git returned unsuccessful status {status}");
     merge_bases
@@ -99,50 +100,67 @@ fn main() {
     let mut buffer = Vec::with_capacity(128);
     let interesting_branches = interesting_branches(&mut buffer);
     let merge_bases = merge_bases(&mut buffer, &interesting_branches);
-    drop(buffer);
 
     // TODO: Stream.
-    let output = Command::new("git")
+    let mut git = Command::new("git")
         .args(["rev-list", "--parents", "--reverse", "--topo-order", "HEAD"])
         .args(&interesting_branches)
         .arg("--not")
         .args(&merge_bases)
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("Failed to run git");
-    if !output.status.success() {
-        eprintln!(
-            "Git returned an unsuccessful status: {}. Git output:\n{}",
-            output.status,
-            String::from_utf8_lossy(&output.stdout)
-        );
-        return;
-    }
-    let mut visible: HashSet<&str> = merge_bases.iter().map(String::as_str).collect();
-    let mut includes: HashSet<&str> = HashSet::new();
-    let mut stragglers: HashSet<&str> = HashSet::new();
-    for line in str::from_utf8(&output.stdout).unwrap().lines() {
-        let mut hashes = line.split(' ');
-        let id = hashes.next().unwrap();
-        includes.insert(id);
-        for hash in hashes.clone() {
-            includes.remove(hash);
-        }
-        if hashes.clone().any(|h| visible.contains(h)) {
-            visible.insert(id);
-            for hash in hashes.filter(|h| !visible.contains(h)) {
-                stragglers.insert(hash);
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("failed to run git");
+    // Key: The ID of a hash that should be visible in the final graph.
+    // Value: true if we have not seen a child of this commit, false if we have
+    //        seen a child. The entries where the value remains true will be the
+    //        entries we include in the git command.
+    let mut visible: HashMap<String, bool> = HashMap::new(); // TODO: Remove type
+    // Commits that we directly exclude from the log. These are commits that are
+    // not visible themselves that are parents of visible commits.
+    let mut excludes: HashSet<String> = HashSet::new();  // TODO: Remove type
+    let mut reader = BufReader::new(git.stdout.as_mut().unwrap());
+    while let Some(len) =
+        reader.read_until(b'\n', &mut buffer).expect("git stdout read failed").checked_sub(1)
+    {
+        let line = str::from_utf8(buffer.get(..len).unwrap()).expect("non-utf-8 git output");
+        let mut ids = line.split(' ');
+        let id = ids.next().expect("empty rev-list output line");
+
+        let mut main = ids.clone().enumerate();
+        loop {
+            let Some((i, parent)) = main.next() else {
+                break;
+            };
+            let Some(exclude) = visible.get_mut(parent) else {
+                continue;
+            };
+            *exclude = false;
+            for parent in ids.take(i) {
+                excludes.insert(parent.into());
             }
+            for (_, parent) in main {
+                match visible.get_mut(parent) {
+                    None => {excludes.insert(parent.into());},
+                    Some(exclude) => *exclude = true,
+                }
+            }
+            visible.insert(id.into(), true);
+            break;
         }
+        buffer.clear();
     }
+    drop(reader);
+    drop(buffer);
+    let status = git.wait().expect("failed to wait for git");
+    assert!(status.success(), "git returned unsuccessful status {status}");
 
     // TODO: Re-add command line config.
     Command::new("git")
         .args(["log", "--graph", "--format=%C(auto)%h %d %<(50,trunc)%s"])
-        .args(includes)
+        .args(visible.iter().filter(|(_,&v)| v).map(|(k, _)| k))
         .arg("--not")
         .args(merge_bases.iter().map(|id| format!("{id}^@")))
-        .args(stragglers)
+        .args(excludes)
         .spawn()
         .expect("Failed to run git")
         .wait()
