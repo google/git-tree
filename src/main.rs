@@ -18,23 +18,30 @@
 // TODO: Move from &str references to binary hash IDs (along with an identity
 // hasher).
 
+mod git_id;
+
 use core::str;
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
 
 #[allow(clippy::allow_attributes)] // TODO: Remove
 #[allow(clippy::allow_attributes_without_reason)] // TODO: Remove
-#[allow(clippy::expect_used)] // TODO: Re-evaluate
 #[allow(clippy::print_stderr)] // TODO: Re-evaluate
 #[allow(clippy::shadow_unrelated)] // TODO: Remove
 #[allow(clippy::unwrap_used)] // TODO: Re-evaluate
 fn main() {
+    /*
     // TODO: Spawn and stream in stdout? Skip UTF-8 checking?
-    let output = Command::new("git")
+    let git_branch = Command::new("git")
         .args(["branch", "--format=%(objectname)|%(upstream)"])
-        .stderr(Stdio::inherit())
-        .output()
-        .expect("Failed to run git");
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("failed to run git");
+    let mut interesting = HashSet::new();
+    let mut tracked = HashSet::new();
+    loop {
+		
+    }
     if !output.status.success() {
         eprintln!(
             "Git returned an unsuccessful status: {}. Git output:\n{}",
@@ -43,8 +50,6 @@ fn main() {
         );
         return;
     }
-    let mut interesting = HashSet::new();
-    let mut tracked = HashSet::new();
     for line in str::from_utf8(&output.stdout).expect("non-UTF-8 git output").lines() {
         let (id, upstream) = line.split_once('|').expect("Incorrect branch --format output");
         interesting.insert(id);
@@ -133,4 +138,5 @@ fn main() {
         .expect("Failed to run git")
         .wait()
         .expect("git log failed");
+    */
 }

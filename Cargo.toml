@@ -30,6 +30,7 @@ blanket_clippy_restriction_lints = "allow"
 cargo = { level = "deny", priority = -1 }
 complexity = { level = "deny", priority = -1 }
 correctness = { level = "deny", priority = -1 }
+expect_used = "allow"
 implicit_return = "allow"
 min_ident_chars = "allow"
 nursery = { level = "deny", priority = -1 }
