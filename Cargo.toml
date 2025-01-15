@@ -26,6 +26,8 @@ version = "0.1.0"
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
+allow_attributes = "allow"
+arbitrary_source_item_ordering = "allow"
 blanket_clippy_restriction_lints = "allow"
 cargo = { level = "deny", priority = -1 }
 complexity = { level = "deny", priority = -1 }
@@ -38,6 +40,7 @@ nursery = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 perf = { level = "deny", priority = -1 }
 restriction = { level = "deny", priority = -1 }
+single_call_fn = "allow"
 style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 unwrap_used = "allow"
