@@ -29,32 +29,43 @@ use std::io::{BufRead as _, BufReader};
 use std::process::{Command, Stdio};
 
 /// Returns all interesting branches. Note that some commits may be in the list
-/// multiple times under different names (different ref paths and/or a SHA
-/// hash).
+/// multiple times under different names.
 /// Precondition: `buffer` must be empty
 /// Postcondition: `buffer` will be empty
-fn interesting_branches(buffer: &mut Vec<u8>) -> HashSet<String> {
+fn interesting_branches(buffer: &mut Vec<u8>) -> Vec<String> {
+    // This considers a branch interesting if it is a local branch or if it has
+    // the same name as a local branch.
     let mut git = Command::new("git")
-        .args(["branch", "--format=%(objectname)|%(upstream)"])
+        .args(["branch", "-a", "--format=%(refname)"])
         .stdout(Stdio::piped())
         .spawn()
         .expect("failed to run git");
-    let mut interesting = HashSet::new();
+    let mut locals = HashSet::new();
+    let mut remotes = vec![];
     let mut reader = BufReader::new(git.stdout.as_mut().unwrap());
     while let Some(len) =
         reader.read_until(b'\n', buffer).expect("git stdout read failed").checked_sub(1)
     {
-        let (id, upstream) = str::from_utf8(buffer.get(..len).unwrap())
-            .expect("non-utf-8 git output")
-            .split_once('|')
-            .expect("incorrect branch --format output");
-        interesting.insert(id.into());
-        if !upstream.is_empty() {
-            interesting.insert(upstream.into());
+        if buffer.first_chunk() == Some(b"refs/remotes/") {
+            remotes.push(buffer.get(b"refs/remotes/".len()..len).unwrap().to_vec());
+        } else if buffer.first_chunk() == Some(b"refs/heads/") {
+            locals.insert(buffer.get(b"refs/heads/".len()..len).unwrap().into());
         }
         buffer.clear();
     }
     drop(reader);
+    let mut interesting = vec![];
+    for remote in remotes {
+        let Some(idx) = remote.iter().position(|&b| b == b'/') else { continue };
+        #[allow(clippy::arithmetic_side_effects, reason = "idx is less than buffer.len()")]
+        let (_, name) = remote.split_at(idx + 1);
+        if locals.contains(name) {
+            interesting.push(String::from_utf8(remote).expect("non-utf-8 branch"));
+        }
+    }
+    interesting.extend(
+        locals.into_iter().map(|local| String::from_utf8(local).expect("non-utf-8 branch")),
+    );
     let status = git.wait().expect("failed to wait for git");
     assert!(status.success(), "git returned unsuccessful status {status}");
     interesting
@@ -63,7 +74,7 @@ fn interesting_branches(buffer: &mut Vec<u8>) -> HashSet<String> {
 /// Returns all merge bases of the interesting commits.
 /// Precondition: `buffer` must be empty
 /// Postcondition: `buffer` will be empty
-fn merge_bases(buffer: &mut Vec<u8>, interesting_branches: &HashSet<String>) -> Vec<String> {
+fn merge_bases(buffer: &mut Vec<u8>, interesting_branches: &Vec<String>) -> Vec<String> {
     let mut git = Command::new("git")
         .args(["merge-base", "-a", "--octopus", "HEAD"])
         .args(interesting_branches)
@@ -98,7 +109,7 @@ fn merge_bases(buffer: &mut Vec<u8>, interesting_branches: &HashSet<String>) -> 
 /// Precondition: buffer is empty.
 fn includes_excludes(
     mut buffer: Vec<u8>,
-    interesting_branches: HashSet<String>,
+    interesting_branches: Vec<String>,
     merge_bases: &Vec<String>,
 ) -> (Vec<String>, Vec<String>) {
     // We want to show the interesting commits, merge bases, and the commits on
@@ -254,9 +265,9 @@ fn includes_excludes(
 }
 
 fn main() {
-    // Capacity estimate is a guess -- twice as large as a SHA-256 hash seems
+    // Capacity estimate is a guess -- 4x as large as a SHA-256 hash seems
     // reasonable (and is a power of two).
-    let mut buffer = Vec::with_capacity(128);
+    let mut buffer = Vec::with_capacity(256);
     let interesting_branches = interesting_branches(&mut buffer);
     let merge_bases = merge_bases(&mut buffer, &interesting_branches);
     let (includes, excludes) = includes_excludes(buffer, interesting_branches, &merge_bases);

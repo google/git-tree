@@ -32,6 +32,7 @@ blanket_clippy_restriction_lints = "allow"
 cargo = { level = "deny", priority = -1 }
 complexity = { level = "deny", priority = -1 }
 correctness = { level = "deny", priority = -1 }
+else_if_without_else = "allow"
 expect_used = "allow"
 get_unwrap = "allow"
 implicit_return = "allow"
