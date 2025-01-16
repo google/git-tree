@@ -7,19 +7,13 @@ what set of commits should be displayed. It is designed for use with
 branch-heavy workflows similar to those supported by the [Mercurial `evolve`
 extension](https://www.mercurial-scm.org/wiki/EvolveExtension).
 
-It accepts the following command-line flags:
-
-* `--debug`/`-d`: Used for debugging `git-tree`'s commit selection. Displays the
-  commits that `git-tree` is trying to show as well as the inclusion/exclusions
-  arguments it is passing to `git log`.
-
-Additionally, any remaining arguments after a `--` are passed through to `git
-log`, allowing the user to set up their own formatting options.
+Command-line arguments are passed through to `git log`, allowing the user to set
+up their own formatting options.
 
 For example, I have the following alias in my `.bashrc` to invoke `git-tree`:
 
 ```
-alias git-tree='git-tree -- --format="%C(auto)%h %d %<(50,trunc)%s"'
+alias git-tree='git-tree --format="%C(auto)%h %d %<(50,trunc)%s"'
 ```
 
 This produces output similar to the following (albeit colorized by default,
