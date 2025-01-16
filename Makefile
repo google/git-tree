@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[package]
-authors = ["Johnathan Van Why <jrvanwhy@google.com>"]
-categories = ["command-line-interface", "visualization"]
-description = """Given a list of git commits to print, computes a set of \
-                 inclusion and exclusions to pass to git log --graph to show \
-                 the specified commits and their interconnections."""
-edition = "2018"
-keywords = ["git"]
-license = "Apache-2.0"
-name = "gitloggraph"
-version = "1.0.0"
-
-[dependencies]
-fnv = "1.0.7"
-git2 = "0.13.6"
-
-[lib]
-path = "lib.rs"
+.PHONY: test
+test:
+	RUSTFLAGS="-D warnings" cargo build --all-targets --release
+	RUSTFLAGS="-D warnings" cargo clippy --all-targets
+	cargo fmt --check
