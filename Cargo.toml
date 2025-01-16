@@ -35,7 +35,10 @@ correctness = { level = "deny", priority = -1 }
 expect_used = "allow"
 get_unwrap = "allow"
 implicit_return = "allow"
+iter_over_hash_type = "allow"
+iter_with_drain = "allow"
 min_ident_chars = "allow"
+missing_docs_in_private_items = "allow"
 nursery = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 perf = { level = "deny", priority = -1 }

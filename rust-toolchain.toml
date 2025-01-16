@@ -12,8 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: test
-test:
-	RUSTFLAGS="-D warnings" cargo build --all-targets --release
-	RUSTFLAGS="-D warnings" cargo clippy --all-targets
-	cargo fmt --check
+[toolchain]
+channel = "nightly"
