@@ -43,6 +43,7 @@ nursery = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 perf = { level = "deny", priority = -1 }
 restriction = { level = "deny", priority = -1 }
+shadow_reuse = "allow"
 single_call_fn = "allow"
 style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }

@@ -21,7 +21,7 @@
 // displays the interesting commits, their collective merge bases, and any
 // commits on the paths between the merge bases and the interesting commits.
 
-use core::iter::repeat_n;
+use core::iter::{once, repeat_n};
 use core::str;
 use std::collections::{HashMap, HashSet};
 use std::env::args_os;
@@ -166,21 +166,46 @@ fn includes_excludes(
     let mut free_slots = Vec::with_capacity(2);
     let mut node_lookup: HashMap<_, _> =
         merge_bases.iter().enumerate().map(|(i, id)| (id.clone().into(), i)).collect();
-    // Indexes of the parents of this commit.
+    // (index range of the parent's id in buffer, Option<index in nodes>) for
+    // each parent of this commit.
     let mut parents = Vec::with_capacity(2);
     let mut reader = BufReader::new(git.stdout.as_mut().unwrap());
     while let Some(len) =
         reader.read_until(b'\n', &mut buffer).expect("git stdout read failed").checked_sub(1)
     {
-        // Iterate over the returned commit IDs. The first ID is the ID of this
-        // commit, the rest are this commit's parents.
-        let mut ids = buffer.get(..len).unwrap().split(|&b| b == b' ');
+        // Construct an iterator over the indexes of the returned commit IDs.
+        // The first ID is the ID of this commit, the rest are this commit's
+        // parents.
+        let mut next_start = 0; // Start of the next range.
+        #[allow(clippy::arithmetic_side_effects, reason = "i is at most buffer.len()")]
+        let mut id_ranges = buffer
+            // Iterate over the buffer excluding the newline.
+            .get(..len)
+            .unwrap()
+            .iter()
+            // enumerate-filter-map to get the indexes of the spaces
+            .enumerate()
+            .filter(|&(_, &b)| b == b' ')
+            .map(|(i, _)| i)
+            // End with the index of the ending newline
+            .chain(once(len))
+            .map(|i| {
+                let start = next_start;
+                next_start = i + 1; // + 1 skips the space
+                start..i
+            });
         // This commit's ID.
-        let id = ids.next().expect("empty rev-list output line");
-        parents.extend(ids.clone().map(|parent| node_lookup.get(parent).copied()));
-        let visible = parents.iter().flatten().any(|&idx| nodes.get(idx).unwrap().is_visible());
+        let id = buffer.get(id_ranges.next().expect("empty rev-list output line")).unwrap();
+        parents
+            .extend(id_ranges.map(|range| {
+                (range.clone(), node_lookup.get(buffer.get(range).unwrap()).copied())
+            }));
+        let visible = parents
+            .iter()
+            .filter_map(|&(_, idx)| idx)
+            .any(|idx| nodes.get(idx).unwrap().is_visible());
         let new_state = if visible {
-            for idx in parents.drain(..).flatten() {
+            for idx in parents.drain(..).filter_map(|(_, idx)| idx) {
                 let parent = nodes.get_mut(idx).unwrap();
                 if *parent == NodeState::VisibleChild {
                     *parent = NodeState::VisibleParent;
@@ -188,25 +213,22 @@ fn includes_excludes(
             }
             NodeState::VisibleChild
         } else {
-            for (parent, parent_id) in parents.drain(..).zip(ids) {
-                let Some(parent_idx) = parent else { continue };
+            for (range, parent_idx) in parents.drain(..) {
+                let Some(parent_idx) = parent_idx else { continue };
                 if nodes.get(parent_idx) != Some(&NodeState::InvisibleChild) {
                     continue;
-                };
-                node_lookup.remove(parent_id);
+                }
+                node_lookup.remove(buffer.get(range).unwrap());
                 free_slots.push(parent_idx);
             }
             NodeState::InvisibleChild
         };
-        match free_slots.pop() {
-            None => {
-                node_lookup.insert(id.to_vec(), nodes.len());
-                nodes.push(new_state);
-            }
-            Some(new_idx) => {
-                node_lookup.insert(id.to_vec(), new_idx);
-                *nodes.get_mut(new_idx).unwrap() = new_state;
-            }
+        if let Some(new_idx) = free_slots.pop() {
+            node_lookup.insert(id.to_vec(), new_idx);
+            *nodes.get_mut(new_idx).unwrap() = new_state;
+        } else {
+            node_lookup.insert(id.to_vec(), nodes.len());
+            nodes.push(new_state);
         }
         buffer.clear();
     }
