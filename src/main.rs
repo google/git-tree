@@ -24,6 +24,7 @@
 use core::iter::repeat_n;
 use core::str;
 use std::collections::{HashMap, HashSet};
+use std::env::args_os;
 use std::io::{BufRead as _, BufReader};
 use std::process::{Command, Stdio};
 
@@ -92,73 +93,72 @@ fn merge_bases(buffer: &mut Vec<u8>, interesting_branches: &HashSet<String>) -> 
     merge_bases
 }
 
-// We want to show the interesting commits, merge bases, and the commits on a
-// path between the two. That is equivalent to showing all commits which
-// satisfy:
-// 1. The commit is reachable from an interesting commit, and
-// 2. A merge base is reachable from the commit.
-// This graph traversal computes the include and exclude arguments to pass to
-// git log to show the above set of commits.
-// We ask `git rev-list` to print all commits that are reachable from an
-// interesting commit and not reachable from a merge base (note: this excludes
-// the merge bases themselves). Every commit that git returns satisfies
-// condition 1, but not all satisfy condition 2 (it may return commits that
-// cannot reach a merge base).
-// Since all such commits satisfy condition 1, we only really have to look at
-// condition 2. If a commit can reach a merge base, then it should be shown, and
-// we call it "visible". To easily compute which commits are visible, we ask git
-// rev-list to print out the commits in reverse topological order, so that we
-// visit all a commit's parents before we visit that commit. That way, when we
-// visit a node, we know it is visible iff it has a visible parent.
-// Once the graph traversal is complete:
-// A) The includes list should consist of every childless visible commit.
-// B) The excludes list should consist of every invisible commit that does not
-//    have an invisible child.
-// Fortunately, we can track whether a node has a (visible?) child as we
-// traverse the graph. When we first add a commit, we mark it as having no
-// (visible?) child, then we update that if we encounter its children. Note that
-// we do not need to track invisible nodes that have invisible children -- they
-// can be forgotten about entirely once detected.
+/// Computes the include and exclude lists to pass to git. The first list
+/// returned is the inclusion list, the second is the exclusion list.
+/// Precondition: buffer is empty.
+fn includes_excludes(
+    mut buffer: Vec<u8>,
+    interesting_branches: HashSet<String>,
+    merge_bases: &Vec<String>,
+) -> (Vec<String>, Vec<String>) {
+    // We want to show the interesting commits, merge bases, and the commits on
+    // a path between the two. That is equivalent to showing all commits which
+    // satisfy:
+    // 1. The commit is reachable from an interesting commit, and
+    // 2. A merge base is reachable from the commit.
+    // This graph traversal computes the include and exclude arguments to pass
+    // to git log to show the above set of commits.
+    // We ask `git rev-list` to print all commits that are reachable from an
+    // interesting commit and not reachable from a merge base (note: this
+    // excludes the merge bases themselves). Every commit that git returns
+    // satisfies condition 1, but not all satisfy condition 2 (it may return
+    // commits that cannot reach a merge base).
+    // Since all such commits satisfy condition 1, we only really have to look
+    // at condition 2. If a commit can reach a merge base, then it should be
+    // shown, and we call it "visible". To easily compute which commits are
+    // visible, we ask git rev-list to print out the commits in reverse
+    // topological order, so that we visit all a commit's parents before we
+    // visit that commit. That way, when we visit a node, we know it is visible
+    // iff it has a visible parent.
+    // Once the graph traversal is complete:
+    // A) The includes list should consist of every childless visible commit.
+    // B) The excludes list should consist of every invisible commit that does
+    //    not have an invisible child.
+    // Fortunately, we can track whether a node has a (visible?) child as we
+    // traverse the graph. When we first add a commit, we mark it as having no
+    // (visible?) child, then we update that if we encounter its children. Note
+    // that we do not need to track invisible nodes that have invisible children
+    // -- they can be forgotten about entirely once detected.
 
-#[derive(Clone, Copy, PartialEq)]
-enum NodeState {
-    // This node should not be visible in the final graph (it does not see a
-    // merge base), and we have not yet explored any invisible child commits
-    // of it. Note that InvisibleParent does not exist because if we find an
-    // invisible child node of an InvisibleChild node, we remove the
-    // InvisibleChild node entirely.
-    InvisibleChild,
+    #[derive(Clone, Copy, PartialEq)]
+    enum NodeState {
+        // This node should not be visible in the final graph (it does not see a
+        // merge base), and we have not yet explored any invisible child commits
+        // of it. Note that InvisibleParent does not exist because if we find an
+        // invisible child node of an InvisibleChild node, we remove the
+        // InvisibleChild node entirely.
+        InvisibleChild,
 
-    // This node should be visible in the final graph (it does see a merge
-    // base), and we've found a child node of it.
-    VisibleParent,
+        // This node should be visible in the final graph (it does see a merge
+        // base), and we've found a child node of it.
+        VisibleParent,
 
-    // This node should be visible in the final graph, and we have not yet
-    // explored a child node of it.
-    VisibleChild,
-}
-impl NodeState {
-    /// Returns whether this is a visible node.
-    fn is_visible(self) -> bool {
-        self != Self::InvisibleChild
+        // This node should be visible in the final graph, and we have not yet
+        // explored a child node of it.
+        VisibleChild,
     }
-}
-
-#[allow(clippy::allow_attributes_without_reason)] // TODO: Remove
-#[allow(clippy::print_stderr)] // TODO: Remove
-#[allow(clippy::shadow_unrelated)] // TODO: Remove
-fn main() {
-    // Capacity estimate is a guess -- twice as large as a SHA-256 hash seems
-    // reasonable (and is a power of two).
-    let mut buffer = Vec::with_capacity(128);
-    let interesting_branches = interesting_branches(&mut buffer);
-    let merge_bases = merge_bases(&mut buffer, &interesting_branches);
+    impl NodeState {
+        /// Returns whether this is a visible node.
+        fn is_visible(self) -> bool {
+            self != Self::InvisibleChild
+        }
+    }
 
     let mut git = Command::new("git")
         .args(["rev-list", "--parents", "--reverse", "--topo-order", "HEAD"])
-        .args(&interesting_branches)
+        .args(interesting_branches)
         .arg("--not")
-        .args(&merge_bases)
+        .args(merge_bases)
         .stdout(Stdio::piped())
         .spawn()
         .expect("failed to run git");
@@ -188,12 +188,12 @@ fn main() {
             }
             NodeState::VisibleChild
         } else {
-            for (parent, id) in parents.drain(..).zip(ids) {
+            for (parent, parent_id) in parents.drain(..).zip(ids) {
                 let Some(parent_idx) = parent else { continue };
                 if nodes.get(parent_idx) != Some(&NodeState::InvisibleChild) {
                     continue;
                 };
-                node_lookup.remove(id);
+                node_lookup.remove(parent_id);
                 free_slots.push(parent_idx);
             }
             NodeState::InvisibleChild
@@ -219,7 +219,7 @@ fn main() {
     for (id, idx) in node_lookup {
         match *nodes.get(idx).unwrap() {
             NodeState::InvisibleChild => {
-                excludes.push(String::from_utf8(id).expect("non-utf-8 id"))
+                excludes.push(String::from_utf8(id).expect("non-utf-8 id"));
             }
             NodeState::VisibleChild => includes.push(String::from_utf8(id).expect("non-utf-8 id")),
             NodeState::VisibleParent => {}
@@ -228,16 +228,28 @@ fn main() {
     drop(nodes);
     let status = git.wait().expect("failed to wait for git");
     assert!(status.success(), "git returned unsuccessful status {status}");
+    (includes, excludes)
+}
 
-    // TODO: Re-add command line config.
+fn main() {
+    // Capacity estimate is a guess -- twice as large as a SHA-256 hash seems
+    // reasonable (and is a power of two).
+    let mut buffer = Vec::with_capacity(128);
+    let interesting_branches = interesting_branches(&mut buffer);
+    let merge_bases = merge_bases(&mut buffer, &interesting_branches);
+    let (includes, excludes) = includes_excludes(buffer, interesting_branches, &merge_bases);
     Command::new("git")
-        .args(["log", "--graph", "--format=%C(auto)%h %d %<(50,trunc)%s"])
+        .args(["log", "--graph"])
         .args(includes)
         .arg("--not")
-        .args(merge_bases.iter().map(|id| format!("{id}^@")))
+        .args(merge_bases.into_iter().map(|mut id| {
+            id.push_str("^@");
+            id
+        }))
         .args(excludes)
+        .args(args_os().skip(1))
         .spawn()
         .expect("Failed to run git")
         .wait()
-        .expect("git log failed");
+        .expect("failed to wait for git");
 }
