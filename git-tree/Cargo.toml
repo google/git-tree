@@ -30,7 +30,7 @@ path = "main.rs"
 [dependencies]
 clap = "2.32.0"
 fnv = "1.0.7"
-git2 = "0.13.6"
+git2 = "0.20.0"
 gitloggraph = { path = "../gitloggraph", version = "1.0.0" }
 
 [profile.release]

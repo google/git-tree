@@ -26,7 +26,7 @@ version = "1.0.0"
 
 [dependencies]
 fnv = "1.0.7"
-git2 = "0.13.6"
+git2 = "0.20.0"
 
 [lib]
 path = "lib.rs"
