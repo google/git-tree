@@ -2,9 +2,9 @@
 
 *This is not an officially supported Google product.*
 
-`git-tree` is a wrapper around `git log --graph` that heuristically determines
-what set of commits should be displayed. It is designed for use with
-branch-heavy workflows similar to those supported by the [Mercurial `evolve`
+`git-tree` is a wrapper around `git log` that heuristically determines what set
+of commits should be displayed. It is designed for use with branch-heavy
+workflows similar to those supported by the [Mercurial `evolve`
 extension](https://www.mercurial-scm.org/wiki/EvolveExtension).
 
 Command-line arguments are passed through to `git log`, allowing the user to set
@@ -13,7 +13,7 @@ up their own formatting options.
 For example, I have the following alias in my `.bashrc` to invoke `git-tree`:
 
 ```
-alias git-tree='git-tree --format="%C(auto)%h %d %<(50,trunc)%s"'
+alias git-tree='git-tree --format="%C(auto)%h %d %<(50,trunc)%s" --graph'
 ```
 
 This produces output similar to the following (albeit colorized by default,

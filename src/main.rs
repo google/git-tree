@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A wrapper around `git log --graph` that heuristically determines what set of
-//! commits should be displayed.
+//! A wrapper around `git log` that heuristically determines what set of commits
+//! should be displayed.
 
 // The "interesting branches" are all local branches and all remote branches
 // that are tracked by a local branch. The "interesting commits" are the commits
@@ -87,10 +87,10 @@ fn merge_bases(buffer: &mut Vec<u8>, interesting_branches: &Vec<String>) -> Vec<
         reader.read_until(b'\n', buffer).expect("git stdout read failed").checked_sub(1)
     {
         // Reserve enough space for the merge base plus a trailing ^@ (used in
-        // the final `git log --graph` invocation).
+        // the final `git log` invocation).
         #[allow(
             clippy::arithmetic_side_effects,
-            reason = "A line large enough to make this overflow does not fit in the address space"
+            reason = "len is < the size of an allocation so adding 2 shouldn't overflow usize"
         )]
         let mut merge_base = String::with_capacity(len + 2);
         merge_base
@@ -272,7 +272,8 @@ fn main() {
     let merge_bases = merge_bases(&mut buffer, &interesting_branches);
     let (includes, excludes) = includes_excludes(buffer, interesting_branches, &merge_bases);
     Command::new("git")
-        .args(["log", "--graph"])
+        .arg("log")
+        .args(args_os().skip(1))
         .args(includes)
         .arg("--not")
         .args(merge_bases.into_iter().map(|mut id| {
@@ -280,7 +281,6 @@ fn main() {
             id
         }))
         .args(excludes)
-        .args(args_os().skip(1))
         .spawn()
         .expect("Failed to run git")
         .wait()
